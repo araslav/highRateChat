@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>Чат</title>
+    <script src="https://cdn.jsdelivr.net/sockjs/1.1.2/sockjs.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/stompjs/lib/stomp.min.js"></script>
+    <script>
+        let stompClient = null;
+        let chatId = null;
+
+        function connect() {
+            chatId = document.getElementById("chatId").value.trim();
+            userName = document.getElementById("userName").value.trim()
+            if (!chatId) {
+                alert("Enter chat ID!");
+                return;
+            }
+
+            validateChatIdAndName(chatId, userName).then(data => {
+                if (data) {
+                    let socket = new SockJS('/chat');
+                    stompClient = Stomp.over(socket);
+                    stompClient.debug = null;
+                    stompClient.connect({}, function () {
+                        stompClient.subscribe('/topic/chat/' + chatId, function (message) {
+                            showMessage(JSON.parse(message.body));
+                        });
+
+                        loadChatHistory(chatId);
+                    });
+
+                    document.getElementById("connectButton").disabled = true;
+                    alert("Connected!");
+                }
+            });
+        }
+
+        function sendMessage() {
+            let message = {
+                userName: document.getElementById("userName").value.trim(),
+                chatId: chatId,
+                content: document.getElementById("message").value.trim()
+            };
+
+            if (!message.userName || !message.content) {
+                alert("Input name and message!");
+                return;
+            }
+
+            stompClient.send("/app/sendMessage", {}, JSON.stringify(message));
+            document.getElementById("message").value = "";
+        }
+
+        function showMessage(message) {
+            let messages = document.getElementById("messages");
+            let p = document.createElement("p");
+            p.appendChild(document.createTextNode(message.userName + ": " + message.content));
+            messages.appendChild(p);
+        }
+
+        function loadChatHistory(chatId) {
+            fetch('/chat/history?chatId=' + chatId)
+                .then(response => response.json())
+                .then(messages => messages.forEach(showMessage))
+                .catch(error => console.error("Error was happened. The history didn't load :", error));
+        }
+
+        function validateChatIdAndName(chatId, userName) {
+            return fetch('/chat/validate-chat-id', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    chatId: chatId, userName: userName
+                })
+            })
+                .then(response => response.json())
+                .then(data => {
+                    if (!data.status) {
+                        throw new Error(data.message);
+                    }
+                    return true;
+                })
+                .catch(error => {
+                        alert(error.message)
+                        return false;
+                    }
+                );
+        }
+    </script>
+</head>
+<body>
+<h2>Chat</h2>
+<input type="text" id="userName" placeholder="Input name">
+<input type="text" id="chatId" placeholder="Input chat ID">
+<button id="connectButton" onclick="connect()">Connect</button>
+<br><br>
+<input type="text" id="message" placeholder="Input message">
+<button onclick="sendMessage()">Send</button>
+<div id="messages"></div>
+</body>
+</html>

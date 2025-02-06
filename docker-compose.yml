@@ -1,0 +1,34 @@
+services:
+  mongo:
+    image: mongo:latest
+    container_name: mongodb
+    ports:
+      - "27017:27017"
+    networks:
+      - chat-network
+    volumes:
+      - mongodb-data:/data/db
+    restart: always
+
+  spring-boot-app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: spring-boot-chat-app
+    ports:
+      - "8080:8080"
+    environment:
+      SPRING_DATA_MONGODB_URI: mongodb://mongo:27017/chatdb
+    depends_on:
+      - mongo
+    networks:
+      - chat-network
+    restart: always
+
+networks:
+  chat-network:
+    driver: bridge
+
+volumes:
+  mongodb-data:
+    driver: local
